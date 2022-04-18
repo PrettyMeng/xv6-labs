@@ -24,7 +24,7 @@ main(int argc, char *argv[])
     // But this does not affect the correctness of this exp.
     wait(0);
     read(p[0], buf, 1);
-    printf("%s", buf);
+    // printf("%s", buf);
     printf("%d: received pong\n", getpid());
   }
 

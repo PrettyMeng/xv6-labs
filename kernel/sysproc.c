@@ -7,6 +7,8 @@
 #include "spinlock.h"
 #include "proc.h"
 
+extern pte_t *walk(pagetable_t, uint64, int);
+
 uint64
 sys_exit(void)
 {
@@ -80,7 +82,36 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  uint64 first_va;
+  if (argaddr(0, &first_va) < 0) {
+    return -1;
+  }
+  int num_page;
+  if (argint(1, &num_page) < 0) {
+    return -1;
+  }
+  if (num_page > 64) {
+    num_page = 64;
+  }
+  uint64 result_mask;
+  if (argaddr(2, &result_mask) < 0) {
+    return -1;
+  }
+  uint64 kernel_result_mask = 0L;
+  pagetable_t pagetable = myproc()->pagetable;
+  for (int i = 0; i < num_page; i++) {
+    pte_t *pte;
+    pte = walk(pagetable, first_va + i * PGSIZE, 0);
+    if ((*pte & PTE_V ) && (*pte & PTE_A)) {
+      kernel_result_mask = kernel_result_mask | (0x1 << i);
+      *pte = (*pte) & (~PTE_A);
+    }
+    // reset the access bit
+  }
+  if (copyout(pagetable, result_mask, (char *)&kernel_result_mask, sizeof(kernel_result_mask)) < 0) {
+    printf("copyout fail");
+    return -1;
+  }
   return 0;
 }
 #endif

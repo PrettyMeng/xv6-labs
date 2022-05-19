@@ -1,0 +1,4 @@
+I think fstat and stat could be speeded up in a similar way.
+
+page0: text and data; page2: stack; page1: guard page
+User mode cannot access memory at page1.

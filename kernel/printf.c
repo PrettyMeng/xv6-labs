@@ -132,3 +132,23 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void
+backtrace()
+{
+  // each fn call is a frame, a stack consists of multiple frames
+  printf("backtrace:\n");
+  uint64 fp = r_fp();
+  uint64 stack_top = PGROUNDUP(fp);
+  uint64 stack_bottom = PGROUNDDOWN(fp);
+  // printf("top: %p, bottom: %p\n", stack_top, stack_bottom);
+  // printf("fp: %p\n", fp);
+  while (fp < stack_top && fp > stack_bottom) {
+    uint64 ra = *(uint64 *)(fp - 0x8L);
+    printf("%p\n", ra);
+    fp = *(uint64 *)(fp - 0x10L);
+    // stack_top = PGROUNDUP(fp);
+    // stack_bottom = PGROUNDDOWN(fp);
+  }
+  
+}

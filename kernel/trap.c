@@ -70,15 +70,22 @@ usertrap(void)
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    // backtrace();
     p->killed = 1;
   }
 
   if(p->killed)
     exit(-1);
 
+  
+
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2) {
+    if (p->alarm_interval > 0) {
+      p->tick_passed++;
+    }
     yield();
+  }
 
   usertrapret();
 }
@@ -117,6 +124,15 @@ usertrapret(void)
 
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);
+
+
+  if (p->alarm_interval > 0 && p->tick_passed == p->alarm_interval && !p->returning) {
+    // save the user instruction address
+    memmove(p->saved_trapframe, p->trapframe, sizeof(struct trapframe));;
+    w_sepc(p->alarm_handler);
+    p->returning = 1;
+    p->tick_passed = 0;
+  }
 
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);

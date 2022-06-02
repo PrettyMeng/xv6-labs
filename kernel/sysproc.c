@@ -121,10 +121,10 @@ uint64
 sys_sigreturn(void)
 {
   struct proc *p = myproc();
-  // p->tick_passed = 0;
+  // restore the saved the whole trapframe
+  // otherwise, will return to the handler function instead of the user program
+  // actually we may just need callee-saved registers
   memmove(p->trapframe, p->saved_trapframe, sizeof(struct trapframe));
-  // w_satp(p->user_satp);
   p->returning = 0;
-  // printf("returning");
   return 0;
 }

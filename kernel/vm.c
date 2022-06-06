@@ -321,11 +321,14 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     // clear the write bit
     flags = flags & (~PTE_W);
     flags = flags | PTE_COW;
-    change_reference_count(pa, 1);
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
-      // kfree(mem);
       goto err;
     }
+    change_reference_count(pa, 1);
+    // mappages change the permission bits in the "new" pagetable
+    // here we shuold also change the permission bits in the "old" pagetable
+    *pte = PA2PTE(pa) | flags;
+
   }
   return 0;
 
@@ -357,13 +360,15 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pte_t *pte = walk(pagetable, dstva, 0);
+    pte_t *pte = walk(pagetable, va0, 0);
+    if (!pte)
+      return -1;
     // If this is a cow page, it shuold be kalloced before copying
     // printf("check cow...\n");
     if (*pte & PTE_COW) {
       char *new_pa = kalloc();
       if (new_pa == 0) {
-        exit(1);
+        return -1;
       }
       uint64 pa = PTE2PA(*pte);
       memmove(new_pa, (char *)pa, PGSIZE);
@@ -372,8 +377,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
       // change_reference_count(pa, -1);
       flags = flags | PTE_W;
       flags = flags & (~PTE_COW);
-      *pte = PA2PTE(new_pa) | flags;
-      // mappages(pagetable, va0, PGSIZE, (uint64)new_pa, flags);
+      // *pte = PA2PTE(new_pa) | flags;
+      mappages(pagetable, va0, PGSIZE, (uint64)new_pa, flags);
       kfree((char *) pa);
     }
     pa0 = walkaddr(pagetable, va0);

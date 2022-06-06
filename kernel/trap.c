@@ -9,6 +9,7 @@
 struct spinlock tickslock;
 uint ticks;
 
+extern pte_t *walk(pagetable_t pagetable, uint64 va, int alloc);
 extern char trampoline[], uservec[], userret[];
 
 // in kernelvec.S, calls kerneltrap().
@@ -67,6 +68,30 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 12 || r_scause() == 13 || r_scause() == 15) {
+    // printf("page fault! %p\n", r_stval());
+    char *new_pa;
+    pte_t *pte;
+    uint64 fault_va = r_stval();
+    pte = walk(p->pagetable, fault_va, 0);
+    if ((*pte & PTE_COW) == 0) {
+      exit(1);
+    }
+    new_pa = kalloc();
+    if (new_pa == 0) {
+      exit(1);
+    }
+    uint64 pa = PTE2PA(*pte);
+    uint flags = PTE_FLAGS(*pte);
+    uvmunmap(p->pagetable, PGROUNDDOWN(fault_va), 1, 0);
+    // change_reference_count(pa, -1);
+    flags = flags | PTE_W;
+    // clear the COW bit
+    flags = flags & (~PTE_COW);
+    mappages(p->pagetable, PGROUNDDOWN(fault_va), PGSIZE, (uint64)new_pa, flags);
+    memmove(new_pa, (char *)pa, PGSIZE);
+    // will decrement reference count here
+    kfree((char *) pa);
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

@@ -1,0 +1,1 @@
+where does the memory for running the operating system live? e.g., the reference count array

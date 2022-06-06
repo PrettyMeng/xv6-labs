@@ -33,11 +33,11 @@ simpletest()
     exit(-1);
   }
 
-  if(pid == 0)
+  if(pid == 0) {
     exit(0);
+  }
 
   wait(0);
-
   if(sbrk(-sz) == (char*)0xffffffffffffffffL){
     printf("sbrk(-%d) failed\n", sz);
     exit(-1);
@@ -131,7 +131,7 @@ filetest()
   
   buf[0] = 99;
 
-  for(int i = 0; i < 4; i++){
+  for(int i = 0; i < 1; i++){
     if(pipe(fds) != 0){
       printf("pipe() failed\n");
       exit(-1);
@@ -142,7 +142,10 @@ filetest()
       exit(-1);
     }
     if(pid == 0){
+      // printf("child i: %d\n", i);
       sleep(1);
+      printf("child i: %d\n", i);
+
       if(read(fds[0], buf, sizeof(i)) != sizeof(i)){
         printf("error: read failed\n");
         exit(1);
@@ -150,11 +153,14 @@ filetest()
       sleep(1);
       int j = *(int*)buf;
       if(j != i){
+        // printf("read %d\n", j);
+        // printf("wrote %d\n", i);
         printf("error: read the wrong value\n");
         exit(1);
       }
       exit(0);
     }
+    // printf("parent i = %d\n", i);
     if(write(fds[1], &i, sizeof(i)) != sizeof(i)){
       printf("error: write failed\n");
       exit(-1);
@@ -180,14 +186,14 @@ filetest()
 int
 main(int argc, char *argv[])
 {
-  simpletest();
+  // simpletest();
 
-  // check that the first simpletest() freed the physical memory.
-  simpletest();
+  // // check that the first simpletest() freed the physical memory.
+  // simpletest();
 
-  threetest();
-  threetest();
-  threetest();
+  // threetest();
+  // threetest();
+  // threetest();
 
   filetest();
 

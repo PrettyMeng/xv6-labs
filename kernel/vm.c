@@ -145,11 +145,14 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
+  
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
+    if(*pte & PTE_V) {
       panic("mappages: remap");
+    }
+      // panic("mappages: remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -303,7 +306,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -312,11 +315,15 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    // clear the write bit
+    flags = flags & (~PTE_W);
+    flags = flags | PTE_COW;
+    change_reference_count(pa, 1);
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
+      // kfree(mem);
       goto err;
     }
   }
@@ -350,14 +357,33 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    pte_t *pte = walk(pagetable, dstva, 0);
+    // If this is a cow page, it shuold be kalloced before copying
+    // printf("check cow...\n");
+    if (*pte & PTE_COW) {
+      char *new_pa = kalloc();
+      if (new_pa == 0) {
+        exit(1);
+      }
+      uint64 pa = PTE2PA(*pte);
+      memmove(new_pa, (char *)pa, PGSIZE);
+      uint flags = PTE_FLAGS(*pte);
+      uvmunmap(pagetable, va0, 1, 0);
+      // change_reference_count(pa, -1);
+      flags = flags | PTE_W;
+      flags = flags & (~PTE_COW);
+      *pte = PA2PTE(new_pa) | flags;
+      // mappages(pagetable, va0, PGSIZE, (uint64)new_pa, flags);
+      kfree((char *) pa);
+    }
     pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
+    if(pa0 == 0) {
       return -1;
+    }
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
     memmove((void *)(pa0 + (dstva - va0)), src, n);
-
     len -= n;
     src += n;
     dstva = va0 + PGSIZE;

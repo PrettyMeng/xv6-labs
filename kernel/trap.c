@@ -73,13 +73,17 @@ usertrap(void)
     char *new_pa;
     pte_t *pte;
     uint64 fault_va = r_stval();
+    if (fault_va >= MAXVA)
+      exit(-1);
     pte = walk(p->pagetable, fault_va, 0);
-    if ((*pte & PTE_COW) == 0) {
-      exit(1);
+    if (pte == 0)
+      exit(-1);
+    if ((*pte & PTE_COW) == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
+      exit(-1);
     }
     new_pa = kalloc();
     if (new_pa == 0) {
-      exit(1);
+      exit(-1);
     }
     uint64 pa = PTE2PA(*pte);
     uint flags = PTE_FLAGS(*pte);

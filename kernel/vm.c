@@ -360,14 +360,17 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    if (va0 >= MAXVA)
+      return -1;
     pte_t *pte = walk(pagetable, va0, 0);
     if (!pte)
       return -1;
+
     // If this is a cow page, it shuold be kalloced before copying
     // printf("check cow...\n");
     if (*pte & PTE_COW) {
       char *new_pa = kalloc();
-      if (new_pa == 0) {
+      if (new_pa == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0) {
         return -1;
       }
       uint64 pa = PTE2PA(*pte);

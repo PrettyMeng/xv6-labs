@@ -1,0 +1,1 @@
+One possible scenario: two threads are trying to insert to the same bucket of the hash table, and both of them see that it's empty. Finally, one insert() call will overwrite the other one.

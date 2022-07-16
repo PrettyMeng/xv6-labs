@@ -289,7 +289,6 @@ net_rx_udp(struct mbuf *m, uint16 len, struct ip *iphdr)
   uint32 sip;
   uint16 sport, dport;
 
-
   udphdr = mbufpullhdr(m, *udphdr);
   if (!udphdr)
     goto fail;
@@ -355,6 +354,7 @@ fail:
 // networking stack
 void net_rx(struct mbuf *m)
 {
+
   struct eth *ethhdr;
   uint16 type;
 

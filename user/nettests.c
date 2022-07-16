@@ -279,7 +279,6 @@ main(int argc, char *argv[])
     if (pid == 0){
       // printf("%d ping\n", i);
       ping(2000 + i + 1, dport, 1);
-      printf("%d ping done\n", i);
       exit(0);
     }
   }

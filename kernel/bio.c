@@ -35,11 +35,14 @@ struct bucket {
   // Linked list of all buffers, through prev/next.
   // Sorted by how recently the buffer was used.
   // head.next is most recent, head.prev is least.
+
+  // for a hash table, the linked list data structure is not necessary any more.
   // struct buf head;
 };
 
 struct bucket bcache_table[HASH_SIZE];
 
+// a simple hash function
 uint
 hash(int blockno)
 {
@@ -54,10 +57,12 @@ binit(void)
   for (int i = 0; i < HASH_SIZE; i++) {
     initlock(&bcache_table[i].lock, "bcache bucket");
     for(b = bcache_table[i].buf; b < bcache_table[i].buf+BUCKET_SIZE; b++){
-      // b->next = bcache.head.next;
-      // b->prev = &bcache.head;
+      // Initialize the sleep lock and the timestamp
       initsleeplock(&b->lock, "buffer");
       b->timestamp = 0;
+
+      // b->next = bcache.head.next;
+      // b->prev = &bcache.head;
       // bcache.head.next->prev = b;
       // bcache.head.next = b;
     }
@@ -82,6 +87,7 @@ bget(uint dev, uint blockno)
   acquire(&bcache_table[bucket_idx].lock);
 
   // Is the block already cached?
+  // A linear scan in the hash bucket
   for (b = bcache_table[bucket_idx].buf; b < bcache_table[bucket_idx].buf+BUCKET_SIZE; b++){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
@@ -90,15 +96,6 @@ bget(uint dev, uint blockno)
       return b;
     }
   }
-
-  // for(b = bcache.head.next; b != &bcache.head; b = b->next){
-  //   if(b->dev == dev && b->blockno == blockno){
-  //     b->refcnt++;
-  //     release(&bcache.locks[bucket_idx]);
-  //     acquiresleep(&b->lock);
-  //     return b;
-  //   }
-  // }
 
   // Not cached.
   // Recycle the least recently used (LRU) unused buffer.
@@ -114,6 +111,7 @@ bget(uint dev, uint blockno)
     }
   }
 
+  // If find an empty slot
   if (lru_idx != -1) {
     b = &bcache_table[bucket_idx].buf[lru_idx];
     b->dev = dev;
@@ -125,18 +123,6 @@ bget(uint dev, uint blockno)
     return b;
   }
 
-
-  // for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
-  //   if(b->refcnt == 0) {
-  //     b->dev = dev;
-  //     b->blockno = blockno;
-  //     b->valid = 0;
-  //     b->refcnt = 1;
-  //     release(&bcache.locks[bucket_idx]);
-  //     acquiresleep(&b->lock);
-  //     return b;
-  //   }
-  // }
   release(&bcache_table[bucket_idx].lock);
   panic("bget: no buffers");
 }
@@ -174,20 +160,12 @@ brelse(struct buf *b)
 
   releasesleep(&b->lock);
 
-  // acquire(&bcache.lock);
   b->refcnt--;
+  // update the timestamp before release
   if (b->refcnt == 0) {
-    // no one is waiting for it.
-    // b->next->prev = b->prev;
-    // b->prev->next = b->next;
-    // b->next = bcache.head.next;
-    // b->prev = &bcache.head;
-    // bcache.head.next->prev = b;
-    // bcache.head.next = b;
     b->timestamp = ticks;
   }
   
-  // release(&bcache.lock);
 }
 
 void

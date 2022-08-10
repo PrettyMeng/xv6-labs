@@ -353,7 +353,11 @@ exit(int status)
   struct proc *p = myproc();
 
   for (int i = 0; i < VMA_SIZE; i++) {
-    uvmunmap(p->pagetable, p->VMAs[i].addr, p->VMAs[i].size, 1);
+    if (p->VMAs[i].valid) {
+      uvmunmap(p->pagetable, p->VMAs[i].addr, p->VMAs[i].size, 1);
+      memset(&p->VMAs[i], 0, sizeof(struct VMA)); 
+    }
+      
   }
 
   if(p == initproc)

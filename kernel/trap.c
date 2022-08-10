@@ -77,7 +77,13 @@ usertrap(void)
   } else if (r_scause() == 12 || r_scause() == 13 || r_scause() == 15) {
     // lazy allocation for mmap
     uint64 fault_va = r_stval();
-    // printf("fault: %p\n", fault_va);
+    // invalid addresses above MAXVA.
+    if (fault_va >= MAXVA)
+      exit(-1);
+
+    // an invalid page beneath the user stack
+    if (fault_va < p->trapframe->sp)
+      exit(-1);
 
     // find the particular VMA corresponding to fault_va
     struct VMA *vma = 0;
@@ -90,13 +96,13 @@ usertrap(void)
       }
     }
     if (!found) {
-      panic("VMA not found?");
-      exit(1);
+      // panic("VMA not found?");
+      exit(-1);
     }
 
     char *new_pa = kalloc();
     if (new_pa == 0) {
-      exit(1);
+      exit(-1);
     }
     memset(new_pa, 0, PGSIZE);
     uint perm = PTE_U;
@@ -108,12 +114,12 @@ usertrap(void)
     }
     if (mappages(p->pagetable, fault_va, PGSIZE, (uint64)new_pa, perm) < 0) {
       kfree(new_pa);
-      exit(1);
+      exit(-1);
     }
     
     ilock(vma->file->ip);
     // printf("fault va: %p, vma->addr: %p \n", fault_va, vma->addr);
-    readi(vma->file->ip, 0, (uint64)new_pa, PGROUNDDOWN(fault_va - vma->addr), PGSIZE);
+    readi(vma->file->ip, 1, fault_va, PGROUNDDOWN(fault_va - vma->addr), PGSIZE);
     iunlock(vma->file->ip);
     
   } else {

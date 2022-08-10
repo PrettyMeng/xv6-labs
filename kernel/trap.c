@@ -5,11 +5,18 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
+#include "fcntl.h"
+
 
 struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[], userret[];
+
+extern pte_t *walk(pagetable_t pagetable, uint64 va, int alloc);
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
@@ -68,6 +75,46 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if (r_scause() == 12 || r_scause() == 13 || r_scause() == 15) {
+    // lazy allocation for mmap
+    uint64 fault_va = r_stval();
+    // printf("fault: %p\n", fault_va);
+
+    // find the particular VMA corresponding to fault_va
+    struct VMA *vma = 0;
+    int found = 0;
+    for (int i = 0; i < VMA_SIZE; i++) {
+      if (p->VMAs[i].valid && fault_va >= p->VMAs[i].addr && fault_va <= p->VMAs[i].addr + p->VMAs[i].size) {
+        vma = &p->VMAs[i];
+        found = 1;
+        break;
+      }
+    }
+    if (!found) {
+      panic("VMA not found?");
+      exit(1);
+    }
+
+    char *new_pa = kalloc();
+    if (new_pa == 0) {
+      exit(1);
+    }
+    memset(new_pa, 0, PGSIZE);
+    uint perm = PTE_U;
+    if (vma->permissions & PROT_READ) {
+      perm |= PTE_R;
+    }
+    if (vma->permissions & PROT_WRITE) {
+      perm |= PTE_W;
+    }
+    if (mappages(p->pagetable, fault_va, PGSIZE, (uint64)new_pa, perm) < 0) {
+      kfree(new_pa);
+      exit(1);
+    }
+    
+    ilock(vma->file->ip);
+    // printf("fault va: %p, vma->addr: %p \n", fault_va, vma->addr);
+    readi(vma->file->ip, 0, (uint64)new_pa, PGROUNDDOWN(fault_va - vma->addr), PGSIZE);
+    iunlock(vma->file->ip);
     
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

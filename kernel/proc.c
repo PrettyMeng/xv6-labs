@@ -53,6 +53,10 @@ procinit(void)
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       p->kstack = KSTACK((int) (p - proc));
+      p->VMA_top = TRAPFRAME;
+      for (int i = 0; i < VMA_SIZE; i++) {
+        p->VMAs[i].valid = 0;
+      }
   }
 }
 
@@ -281,6 +285,13 @@ fork(void)
     return -1;
   }
 
+  for (int i = 0; i < VMA_SIZE; i++) {
+    if (p->VMAs[i].valid) {
+      np->VMAs[i] = p->VMAs[i];
+      filedup(p->VMAs[i].file);
+    }
+  }
+
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -340,6 +351,10 @@ void
 exit(int status)
 {
   struct proc *p = myproc();
+
+  for (int i = 0; i < VMA_SIZE; i++) {
+    uvmunmap(p->pagetable, p->VMAs[i].addr, p->VMAs[i].size, 1);
+  }
 
   if(p == initproc)
     panic("init exiting");

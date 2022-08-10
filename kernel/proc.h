@@ -1,3 +1,5 @@
+#define VMA_SIZE 16
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -82,6 +84,15 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct VMA {
+  int valid;
+  uint64 addr;
+  uint64 size;
+  uint permissions;
+  uint flags;
+  struct file *file;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -105,4 +116,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  uint64 VMA_top;              // Virtual address of the top VMA. Used to allocate the next one.
+  struct VMA VMAs[VMA_SIZE];   // what mmap has mapped
+  
 };
